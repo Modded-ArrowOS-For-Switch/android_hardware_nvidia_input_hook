@@ -1,0 +1,6 @@
+service nv-input-1-0 /vendor/bin/hw/vendor.nvidia.hardware.shieldtech.inputflinger@2.0-service
+    class early_hal
+    user system
+    group system uhid
+    interface vendor.nvidia.hardware.shieldtech.inputflinger@2.0::IInputHook default
+
