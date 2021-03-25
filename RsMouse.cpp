@@ -38,11 +38,11 @@ namespace device {
 }
 
 namespace cursor {
-    constexpr std::chrono::duration UpdateRate{std::chrono::seconds{1} / 60};
+    constexpr auto UpdateRate{std::chrono::milliseconds{1000} / 60}; //!< 60Hz update rate
     constexpr float Deadzone{0.1f};
     constexpr float Power{3.0f}; //!< Power for cursor velocity curve
-    constexpr float SpeedCoeffFinal{0.0008f}; //! Coefficient for the final output cursor speed
-    constexpr std::chrono::duration FadeTime{std::chrono::seconds{15}}; //! Maximum time it takes the cursor to fade (should match frameworks/base/libs/input/PointerController.cpp)
+    constexpr float SpeedCoeffFinal{23.0f}; //! Coefficient for the final output cursor speed
+    constexpr auto FadeTime{std::chrono::seconds{15}}; //! Maximum time it takes the cursor to fade (should match frameworks/base/libs/input/PointerController.cpp)
 }
 
 RsMouse::RsMouse(const DeviceDb &deviceDb) : mDeviceDb(deviceDb) {}
@@ -69,57 +69,45 @@ void RsMouse::MouseMain() {
     auto activeTime{std::chrono::system_clock::now()};
 
     while (!mExiting) {
-        auto startTime{std::chrono::system_clock::now()};
         auto coords{mStickCoords.load()};
         float adjustedX{std::abs(Deadzone(coords.rsX, cursor::Deadzone)) - cursor::Deadzone};
         float adjustedY{std::abs(Deadzone(coords.rsY, cursor::Deadzone)) - cursor::Deadzone};
 
-        if (adjustedX != 0.0f || adjustedY != 0.0f) {
-            // This normalisation is done to avoid diagonals moving slower
-            float magnitude{std::sqrt(adjustedX * adjustedX + adjustedY * adjustedY)}; // Normalised magnitude
-            float desiredMagnitude{adjustedX + adjustedY}; // Magnitude based on stick location regardless of direction
-            magnitude /= desiredMagnitude;
+        int32_t changeX{}, changeY{};
+        if (adjustedX != 0.0f) {
+            float rsX{std::pow(adjustedX, cursor::Power)};
+            rsX *= ((coords.rsX > 0.0f) ? cursor::SpeedCoeffFinal : -cursor::SpeedCoeffFinal);
 
-            int32_t changeX{}, changeY{};
-            if (adjustedX != 0.0f) {
-                adjustedX /= magnitude;
+            changeX = static_cast<int32_t>(std::round(accumulateX + rsX)) - static_cast<int32_t>(std::round(accumulateX));
+            accumulateX += rsX;
+            if (changeX)
+                mInjector.SendRel(REL_X, changeX);
+        }
 
-                float rsX{std::pow(adjustedX, cursor::Power)};
-                rsX *= ((coords.rsX > 0.0f) ? cursor::SpeedCoeffFinal : -cursor::SpeedCoeffFinal);
+        if (adjustedY != 0.0f) {
+            float rsY{std::pow(adjustedY, cursor::Power)};
+            rsY *= ((coords.rsY > 0.0f) ? cursor::SpeedCoeffFinal : -cursor::SpeedCoeffFinal);
 
-                changeX = static_cast<int32_t>(std::round(accumulateX + rsX)) - static_cast<int32_t>(std::round(accumulateX));
-                accumulateX += rsX;
-                if (changeX)
-                    mInjector.SendRel(REL_X, changeX);
-            }
+            changeY = static_cast<int32_t>(std::round(accumulateY + rsY)) - static_cast<int32_t>(std::round(accumulateY));
+            accumulateY += rsY;
+            if (changeY)
+                mInjector.SendRel(REL_Y, changeY);
+        }
 
-            if (adjustedY != 0.0f) {
-                adjustedY /= magnitude;
+        if (changeX || changeY) {
+            mInjector.SendSynReport();
+            activeTime = std::chrono::system_clock::now();
+            mCanClick = true;
+        }
 
-                float rsY{std::pow(adjustedY, cursor::Power)};
-                rsY *= ((coords.rsY > 0.0f) ? cursor::SpeedCoeffFinal : -cursor::SpeedCoeffFinal);
-
-                changeY = static_cast<int32_t>(std::round(accumulateY + rsY)) - static_cast<int32_t>(std::round(accumulateY));
-                accumulateY += rsY;
-                if (changeY)
-                    mInjector.SendRel(REL_Y, changeY);
-            }
-
-            if (changeX || changeY) {
-                mInjector.SendSynReport();
-                activeTime = std::chrono::system_clock::now();
-                mCanClick = true;
+        if (mCanClick) {
+            if (std::chrono::system_clock::now() - activeTime > cursor::FadeTime) {
+                mCanClick = false;
+                accumulateX = accumulateY = 0.0f; // Take this oppertunity to reset the accumulate variable to prevent {over, under}flows, however unlikely they are
             }
         }
 
-        if (std::chrono::system_clock::now() - activeTime > cursor::FadeTime) {
-            mCanClick = false;
-            accumulateX = accumulateY = 0.0f; // Take this oppertunity to reset the accumulate variable to prevent {over, under}flows, however unlikely they are
-        }
-
-        auto cycleTimeTaken{std::chrono::system_clock::now() - startTime};
-        if (cycleTimeTaken < cursor::UpdateRate)
-            std::this_thread::sleep_for(cursor::UpdateRate);
+        std::this_thread::sleep_for(cursor::UpdateRate);
     }
 }
 
