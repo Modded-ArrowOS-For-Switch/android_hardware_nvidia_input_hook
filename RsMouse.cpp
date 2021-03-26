@@ -136,11 +136,15 @@ Response RsMouse::FilterEvent(HidlInputEvent &iev, int32_t &deviceId) {
     if (!mRegistered)
         return Response::EVENT_DEFAULT;
 
-    // Replace R3 clicks with RsMouse clicks if possible
-    if (mCanClick && iev.code == mDeviceDb.at(deviceId).rsMouseClickKeyCode) {
-        mInjector.SendKey(BTN_LEFT, iev.value);
-        mInjector.SendSynReport();
-        return Response::EVENT_SKIP;
+    // Replace R3/A/B clicks with RsMouse clicks if possible
+    if (mCanClick) {
+        for (uint16_t code : {BTN_THUMBR, BTN_A, BTN_B}) {
+            if (code == iev.code) {
+                mInjector.SendKey(BTN_LEFT, iev.value);
+                mInjector.SendSynReport();
+                return Response::EVENT_SKIP;
+            }
+        }
     }
 
     return Response::EVENT_DEFAULT;

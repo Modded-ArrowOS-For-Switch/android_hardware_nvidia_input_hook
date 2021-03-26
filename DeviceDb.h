@@ -26,7 +26,6 @@ namespace inputhook {
 
 struct DeviceDescriptor {
     bool blacklisted{}; //!< If this device shouldn't be used for any input hooks
-    int32_t rsMouseClickKeyCode{BTN_THUMBR}; //!< Keycode for the key to be used as RsMouse click
 };
 
 class DeviceDb {
