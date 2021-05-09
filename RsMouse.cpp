@@ -41,7 +41,7 @@ namespace cursor {
     constexpr auto UpdateRate{std::chrono::milliseconds{1000} / 60}; //!< 60Hz update rate
     constexpr float Deadzone{0.1f};
     constexpr float Power{3.0f}; //!< Power for cursor velocity curve
-    constexpr float SpeedCoeffFinal{23.0f}; //! Coefficient for the final output cursor speed
+    constexpr float SpeedCoeffFinal{27.0f}; //! Coefficient for the final output cursor speed
     constexpr auto FadeTime{std::chrono::seconds{15}}; //! Maximum time it takes the cursor to fade (should match frameworks/base/libs/input/PointerController.cpp)
 }
 
@@ -73,10 +73,12 @@ void RsMouse::MouseMain() {
         float adjustedX{std::abs(Deadzone(coords.rsX, cursor::Deadzone)) - cursor::Deadzone};
         float adjustedY{std::abs(Deadzone(coords.rsY, cursor::Deadzone)) - cursor::Deadzone};
 
+        float combined{std::min(adjustedX + adjustedY, 1.0f - cursor::Deadzone)};
+        float combinedPow{std::pow(combined, cursor::Power)};
+
         int32_t changeX{}, changeY{};
         if (adjustedX != 0.0f) {
-            float rsX{std::pow(adjustedX, cursor::Power)};
-            rsX *= ((coords.rsX > 0.0f) ? cursor::SpeedCoeffFinal : -cursor::SpeedCoeffFinal);
+            float rsX = combinedPow * adjustedX * ((coords.rsX > 0.0f) ? cursor::SpeedCoeffFinal : -cursor::SpeedCoeffFinal);
 
             changeX = static_cast<int32_t>(std::round(accumulateX + rsX)) - static_cast<int32_t>(std::round(accumulateX));
             accumulateX += rsX;
@@ -85,8 +87,7 @@ void RsMouse::MouseMain() {
         }
 
         if (adjustedY != 0.0f) {
-            float rsY{std::pow(adjustedY, cursor::Power)};
-            rsY *= ((coords.rsY > 0.0f) ? cursor::SpeedCoeffFinal : -cursor::SpeedCoeffFinal);
+            float rsY = combinedPow * adjustedY * ((coords.rsY > 0.0f) ? cursor::SpeedCoeffFinal : -cursor::SpeedCoeffFinal);
 
             changeY = static_cast<int32_t>(std::round(accumulateY + rsY)) - static_cast<int32_t>(std::round(accumulateY));
             accumulateY += rsY;
