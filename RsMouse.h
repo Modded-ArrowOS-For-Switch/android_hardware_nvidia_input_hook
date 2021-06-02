@@ -32,6 +32,7 @@ class RsMouse {
     std::atomic<AnalogCoords> mStickCoords{};
     std::atomic_bool mExiting{}; //!< If the RsMouse thread should exit
     std::atomic_bool mCanClick{}; //!< Controls whether R3 press events will be treated as mouse clicks or passed through
+    bool mDisabled{};
     std::thread mMouseThread;
 
     const DeviceDb &mDeviceDb;

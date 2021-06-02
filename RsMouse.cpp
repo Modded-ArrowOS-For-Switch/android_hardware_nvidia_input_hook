@@ -137,13 +137,19 @@ Response RsMouse::FilterEvent(HidlInputEvent &iev, int32_t &deviceId) {
     if (!mRegistered)
         return Response::EVENT_DEFAULT;
 
+    if (iev.type == EV_KEY && iev.code == BTN_Z && iev.value == 0) {
+        mCanClick = mDisabled;
+        mDisabled = !mDisabled;
+        mStickCoords = AnalogCoords{};
+        return Response::EVENT_SKIP;
+    }
     // Replace R1/R2 clicks with RsMouse clicks if possible
     if (mCanClick) {
         if (iev.type == EV_ABS && iev.code == ABS_RZ) {
             mInjector.SendKey(BTN_LEFT, iev.value > 0);
             mInjector.SendSynReport();
             return Response::EVENT_SKIP;
-        } else if (iev.type == EV_ABS && iev.code == BTN_TR) {
+        } else if (iev.type == EV_KEY && iev.code == BTN_TR) {
             mInjector.SendKey(BTN_RIGHT, iev.value);
             mInjector.SendSynReport();
             return Response::EVENT_SKIP;
@@ -158,7 +164,7 @@ bool RsMouse::NotifyMotionState(int32_t deviceId, const AnalogCoords &pc, bool h
         return false;
 
     // If the app handles any motion event then we stop grabbing click inputs
-    if (handled)
+    if (handled || mDisabled)
         mCanClick = false;
     else
         mStickCoords = pc;
